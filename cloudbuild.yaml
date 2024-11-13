@@ -1,0 +1,48 @@
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '7797/my-dash-app:latest', '.']
+
+  # Step 2: Push the Docker image to Docker Hub
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['login', '-u', '$_DOCKER_HUB_USERNAME', '-p', '$_DOCKER_HUB_PASSWORD']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'dockerhub_username/my-dash-app:latest']
+
+  # Step 3: Install Terraform
+  - name: 'hashicorp/terraform:light'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apk add --update curl && \
+        curl -O https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_linux_amd64.zip && \
+        unzip terraform_1.5.0_linux_amd64.zip && \
+        mv terraform /usr/local/bin/terraform
+
+  # Step 4: Initialize Terraform
+  - name: 'hashicorp/terraform:light'
+    dir: 'terraform'
+    args: ['init']
+
+  # Step 5: Apply Terraform configuration
+  - name: 'hashicorp/terraform:light'
+    dir: 'terraform'
+    args: ['apply', '-auto-approve']
+
+  # Step 6: SSH into the VM to pull Docker image and run it
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'compute'
+      - 'ssh'
+      - 'dash-app-vm'
+      - '--zone=us-central1-a'
+      - '--command'
+      - |
+        "sudo docker pull 7797/my-dash-app:latest && \
+         sudo docker run -d -p 8050:8050 7797/my-dash-app:latest"
+
+substitutions:
+  _DOCKER_HUB_USERNAME: 'your_dockerhub_username'
+  _DOCKER_HUB_PASSWORD: 'your_dockerhub_password'
